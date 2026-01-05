@@ -1,0 +1,83 @@
+pipeline {
+    agent {
+        docker {
+            image 'node:18-bullseye'
+            args '-u root:root'
+        }
+    }
+
+    environment {
+        // Jenkins credential ID: SONARCLOUD_TOKEN
+        SONAR_TOKEN = credentials('SONARCLOUD_TOKEN')
+    }
+
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                checkout scmGit(
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        credentialsId: 'git-jenkins',
+                        url: 'https://github.com/KAILAS-R-PILLAI/simple-node-app.git'
+                    ]]
+                )
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Run Tests & Coverage') {
+            steps {
+                sh 'npm test'
+            }
+        }
+
+        stage('SonarCloud Scan') {
+            steps {
+                withSonarQubeEnv('SonarCloud') {
+                    sh '''
+                        echo "Cleaning old SonarScanner (if any)..."
+                        rm -rf sonar-scanner*
+
+                        echo "Downloading SonarScanner CLI..."
+                        curl -sSLo sonar-scanner.zip \
+                        https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+
+                        echo "Unzipping SonarScanner..."
+                        unzip -oq sonar-scanner.zip
+
+                        SCANNER_DIR=$(ls -d sonar-scanner-*/)
+
+                        export PATH="$PWD/$SCANNER_DIR/bin:$PATH"
+
+                        echo "Running SonarCloud analysis..."
+                        sonar-scanner \
+                            -Dsonar.projectKey=KAILAS-R-PILLAI_simple-node-app \
+                            -Dsonar.organization=kailas-r-pillai \
+                            -Dsonar.sources=. \
+                            -Dsonar.exclusions=node_modules/**,coverage/**,tests/** \
+                            -Dsonar.tests=tests \
+                            -Dsonar.test.inclusions=**/*.test.js \
+                            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
+                            -Dsonar.coverage.cobertura.xmlReportPaths=coverage/cobertura-coverage.xml \
+                            -Dsonar.login=$SONAR_TOKEN
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo '✅ SonarCloud integration successful!'
+        }
+        failure {
+            echo '❌ SonarCloud integration failed!'
+        }
+    }
+}
