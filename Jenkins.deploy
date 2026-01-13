@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        EC2_HOST = '13.232.165.197'
+        EC2_HOST = '18.208.217.74'
         EC2_USER = 'ec2-user'
         APP_DIR  = '/var/www/node-app'
     }
@@ -14,8 +14,7 @@ pipeline {
                 checkout scmGit(
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        credentialsId: 'git-jenkins',
-                        url: 'https://github.com/KAILAS-R-PILLAI/simple-node-app.git'
+                        url: 'https://github.com/Swalih04/simple-node-app.git'
                     ]]
                 )
             }
@@ -26,13 +25,19 @@ pipeline {
                 sshagent(credentials: ['EC2_SSH_KEY']) {
                     sh '''
                         echo "📦 Deploying application to EC2..."
+
                         ssh-keygen -R $EC2_HOST || true
-                        ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST \
-                          "sudo mkdir -p $APP_DIR && sudo chown -R ec2-user:ec2-user $APP_DIR"
+
+                        ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
+                          sudo mkdir -p $APP_DIR &&
+                          sudo chown -R ec2-user:ec2-user $APP_DIR
+                        "
+
                         rsync -avz --delete \
                           --exclude .git \
                           -e "ssh -o StrictHostKeyChecking=no" \
                           ./ $EC2_USER@$EC2_HOST:$APP_DIR
+
                         ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "
                           cd $APP_DIR &&
                           npm install &&
